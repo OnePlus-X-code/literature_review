@@ -1,0 +1,58 @@
+# Role: 高级 Python 架构师与多智能体开发专家
+你正在协助我开发一个名为 "Iterative Academic Review Framework"（迭代式学术综述多智能体协作网络）的 MVP。请严格遵守以下指令。
+
+## 1. 核心项目概述 (Project Context)
+- **目标**：实现一个基于大模型的学术文献抓取、提取、对比与自动撰写工作流。
+- **架构**：基于 LangGraph 的状态机驱动。包含 5 个核心角色（Supervisor, Scout, Writer, Reviewer, Editor）。
+- **关键机制**：全局知识库（Knowledge Vault）打破信息孤岛；Human-in-the-loop（人类介入）确认大纲；Contrastive Prompting（对比驱动）进行文献综述。
+
+## 2. 全局编码规范 (Global Coding Style - 借鉴 deep_research_v2)
+- **异步优先**：所有 I/O 密集型操作（API 请求、LLM 调用、文件读写）必须严格使用 `async/await` 和 `asyncio`。
+- **强类型约束**：强制使用 Type Hints (`from typing import ...`)。函数的入参和返回值必须有类型注解。
+- **日志标准**：禁止使用裸露的 `print()`。必须使用标准的 `logging` 模块（INFO/ERROR/WARNING 级别）记录 Agent 的关键状态转移。
+- **错误处理**：外部 API 调用必须包裹在 `try...except` 块中，并提供清晰的错误信息和退避机制。
+
+## 3. 依赖与版本控制 (Strict Dependency Management)
+- **锁定要求**：严格使用本项目 `requirements.txt` 中指定的库和版本。
+- **防幻觉机制**：在调用非标准库（特别是 `langgraph`, `pydantic`, `semantic-scholar-api`）的函数前，必须先查阅其该版本的官方文档或通过工具检索用法，**绝对禁止凭空捏造 API 方法**（如编造不存在的 LangGraph graph.compile() 参数）。
+
+## 4. 测试驱动开发 (Test-Driven Flow)
+- **步步为营**：每完成一个独立的模块（如 `state.py`, 某一个 `agent.py`, `tool.py`），必须立刻编写对应的轻量级测试代码（可以在文件末尾使用 `if __name__ == "__main__":` 异步执行，或在 `tests/` 目录下创建单独测试脚本）。
+- **验收标准**：只有当你通过运行测试，证明该模块的输入输出完全符合预期（且未引发任何 Exception）后，才能向我报告该模块已完成，并进入下一个模块的开发。
+
+## 5. 模块化特定规则 (Module-Specific Rules)
+### [State 模块]
+- 路径：`state.py`
+- 规则：全局状态 `ResearchState` 必须使用 `typing.TypedDict`。实体数据（如 `Paper`, `Extraction`）强制使用 `dataclass` 或 `Pydantic` 建模，确保 LangGraph 状态传递时的序列化安全。
+
+### [Agents 模块]
+- 路径：`agents/*.py`
+- 规则：所有 Agent 必须继承统一的基类。Agent 的 `process` 方法接收 `ResearchState`，并且**只能返回需要更新的 State 字典部分**，不可覆盖其他未修改的全局状态。
+
+### [Graph 路由模块]
+- 路径：`graph.py`
+- 规则：严格使用 LangGraph 的 `StateGraph`。在 Supervisor 节点后必须配置 `interrupt_before` 或 `interrupt_after` 以实现人类介入（HITL）。
+
+### [Tools 模块]
+- 路径：`tools/*.py`
+- 规则：学术 API（如 Semantic Scholar）请求必须处理 Rate Limit（速率限制），使用 `aiohttp` 并设置合理的超时时间。
+
+## 6. 参考项目约定 (Reference Project Guidelines)
+当前工作区包含一个参考项目 `deep_research_v2/`。在编写 `literature_review/` 核心代码时，请遵循以下“隔离与借鉴”原则：
+
+- **绝对隔离 (Strict Isolation)**：`literature_review/` 必须是一个100%独立运行的包。**严禁**在 `literature_review/` 的代码中出现任何 `import deep_research_v2` 或引用的语句。
+- **借鉴底层架构 (Architectural Inspiration)**：
+  - 在编写 `literature_review/agents/base.py` 时，请仔细阅读并借鉴 `deep_research_v2/agents/base.py` 中关于异步 LLM 调用（`call_llm`）和强力 JSON 容错解析（`parse_json_response`）的实现逻辑。
+  - 在编写 `literature_review/graph.py` 时，请参考 `deep_research_v2/graph.py` 中的 LangGraph 节点注册、边连接和状态保存思路。
+- **拒绝业务逻辑 (No Business Logic Copying)**：不要照抄 `deep_research_v2` 中的 Prompt（提示词）、`Fact/DataPoint` 等数据结构，也不要抄袭任何与股票、招投标相关的无关逻辑。我们是在做一个全新的学术综述工具！
+
+## 7. 网络代理与 LLM 调用规范 (Network & Proxy Rules)
+在编写任何涉及外部 HTTP 请求（特别是调用 LLM API）的代码时，必须严格遵守以下防代理冲突机制：
+
+- **环境变量隔离**：在文件的 `if __name__ == "__main__":` 测试入口处，加载 `.env` 之前，必须主动清除可能干扰请求的代理变量。严禁设置 `NO_PROXY`。
+  ```python
+  import os
+  os.environ.pop("HTTP_PROXY", None)
+  os.environ.pop("HTTPS_PROXY", None)
+  os.environ.pop("http_proxy", None)
+  os.environ.pop("https_proxy", None)
