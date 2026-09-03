@@ -1,4 +1,25 @@
-# Tencent Cloud EdgeOne
+# Secrets
 .env
+.env.*
+!.env.example
+
+# Experimental / private local work
+deep_research_v2/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Tencent Cloud EdgeOne
 .edgeone/*
 .tef_dist/*
